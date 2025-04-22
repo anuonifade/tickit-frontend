@@ -64,12 +64,6 @@ const PublicLayout = () => {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Tickit Health Survey
           </Typography>
-          <Button color="inherit" component={Link} to="/">
-            Survey
-          </Button>
-          <Button color="inherit" component={Link} to="/analytics">
-            Analytics
-          </Button>
           <Button color="inherit" component={Link} to="/admin">
             Admin
           </Button>

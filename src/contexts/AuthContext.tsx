@@ -16,7 +16,7 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (credentials: { email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
   updateAdmin: (adminData: Partial<Admin>) => void;
 }
@@ -72,10 +72,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (credentials: { email: string; password: string }) => {
     setIsLoading(true);
     try {
-      const response = await authApi.login({ email, password });
+      const response = await authApi.login(credentials);
       const { admin, token } = response.data;
       
       if (!token) {

@@ -96,8 +96,24 @@ const Dashboard: React.FC = () => {
         console.log('Stats Response:', JSON.stringify(statsResponse.data));
         console.log('HIPAA Response:', JSON.stringify(hipaaResponse.data));
         
+        // Ensure the data structure is valid before setting state
+        const hipaaData = hipaaResponse.data;
+        
+        // Ensure patients_by_gender has the expected structure
+        if (hipaaData?.patients_by_gender) {
+          // Make sure by_gender exists and has the expected properties
+          if (!hipaaData.patients_by_gender.by_gender) {
+            hipaaData.patients_by_gender.by_gender = {
+              male: 0,
+              female: 0,
+              other: 0,
+              undisclosed: 0
+            };
+          }
+        }
+        
         setStats(statsResponse.data);
-        setHipaaStats(hipaaResponse.data);
+        setHipaaStats(hipaaData);
         setError(null);
       } catch (err: any) {
         console.error('Error fetching dashboard data:', err);
@@ -387,7 +403,7 @@ const Dashboard: React.FC = () => {
             <Divider />
             <CardContent>
               <List dense>
-                {hipaaStats?.recent_phi_access && hipaaStats.recent_phi_access.length > 0 ? (
+                {hipaaStats?.recent_phi_access && Array.isArray(hipaaStats.recent_phi_access) && hipaaStats.recent_phi_access.length > 0 ? (
                   hipaaStats.recent_phi_access.map((activity, index) => (
                     <ListItem key={index}>
                       <ListItemIcon>
@@ -417,7 +433,7 @@ const Dashboard: React.FC = () => {
       
       <Paper elevation={3} sx={{ p: 2, borderRadius: 2 }}>
         <List>
-          {stats?.recent_activity && stats.recent_activity.length > 0 ? (
+          {stats?.recent_activity && Array.isArray(stats.recent_activity) && stats.recent_activity.length > 0 ? (
             stats.recent_activity.map((activity, index) => (
               <React.Fragment key={index}>
                 <ListItem>
