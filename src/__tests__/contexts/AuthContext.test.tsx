@@ -21,7 +21,12 @@ const TestComponent = () => {
     <div>
       <div data-testid="auth-status">{isAuthenticated ? 'Authenticated' : 'Not authenticated'}</div>
       {admin && <div data-testid="admin-email">{admin.email}</div>}
-      <button data-testid="login-button" onClick={() => login({ email: 'test@example.com', password: 'password' })}>Login</button>
+      <button 
+        data-testid="login-button" 
+        onClick={() => login({ email: 'test@example.com', password: 'password' })}
+      >
+        Login
+      </button>
       <button data-testid="logout-button" onClick={() => logout()}>Logout</button>
     </div>
   );
@@ -125,6 +130,7 @@ describe('AuthContext', () => {
     });
     
     expect(screen.getByTestId('admin-email')).toHaveTextContent('test@example.com');
+    // Verify that login was called with the credentials object
     expect(authApi.login).toHaveBeenCalledWith({ email: 'test@example.com', password: 'password' });
     expect(localStorage.getItem('token')).toBe(mockToken);
     expect(localStorage.getItem('admin')).toBe(JSON.stringify(mockAdmin));
