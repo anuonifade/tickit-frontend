@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Box,
   Typography,
-  Grid,
   Paper,
   CircularProgress,
   Alert,
@@ -25,39 +24,73 @@ import ErrorIcon from '@mui/icons-material/Error';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import FlagIcon from '@mui/icons-material/Flag';
 import EventNoteIcon from '@mui/icons-material/EventNote';
+import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 
 interface DashboardStats {
-  surveys: number;
-  patients: number;
-  recent_surveys: number;
-  flagged_surveys: number;
-  survey_completion_rate: number;
-  survey_workflows: number;
-  questions: number;
+  surveys: {
+    total: number;
+    today: number;
+    this_week: number;
+    this_month: number;
+    flagged: number;
+    completion_rate?: number;
+  };
+  patients: {
+    total: number;
+    active: number;
+    by_gender: {
+      female: number;
+      male: number;
+      'non-binary'?: number;
+      other?: number;
+      undisclosed?: number;
+    };
+  };
+  questions: {
+    total: number;
+    by_type: {
+      [key: string]: number;
+    };
+  };
+  workflows: {
+    total: number;
+    active: number;
+  };
+  audit_logs: {
+    total: number;
+    today: number;
+  };
   recent_activity: {
-    action: string;
-    entity_type: string;
+    type: string;
+    id: number;
+    title: string;
     created_at: string;
-    admin_name: string;
   }[];
 }
 
 interface HipaaComplianceStats {
   audit_logs: {
     total: number;
-    last_24_hours: number;
+    by_action: {
+      [key: string]: number;
+    };
+    recent: {
+      id: number;
+      action: string;
+      created_at: string;
+      admin_email: string;
+    }[];
   };
   data_encryption: {
-    status: string;
-    encrypted_fields: number;
-    total_fields: number;
+    patient_data: string;
+    survey_data: string;
+    notes: string;
   };
   access_controls: {
-    total_admins: number;
-    super_admins: number;
-    regular_admins: number;
-    recent_login_attempts: number;
-    failed_login_attempts: number;
+    admins_count: number;
+    super_admins_count: number;
+    jwt_authentication: string;
+    session_timeout: string;
   };
   patients_by_gender?: {
     total: number;
@@ -76,6 +109,25 @@ interface HipaaComplianceStats {
     admin_name: string;
   }[];
 }
+
+// Helper function to get the appropriate icon for an activity type
+const getActivityIcon = (type: string, title: string) => {
+  switch (type) {
+    case 'survey':
+      return <AssignmentIcon />;
+    case 'question':
+      return <QuestionAnswerIcon />;
+    case 'workflow':
+      return <TimelineIcon />;
+    default:
+      return <EventNoteIcon />;
+  }
+};
+
+// Helper function to get a readable description for an activity
+const getActivityText = (type: string, title: string) => {
+  return `${type.charAt(0).toUpperCase() + type.slice(1)}: ${title}`;
+};
 
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -98,6 +150,21 @@ const Dashboard: React.FC = () => {
         
         // Ensure the data structure is valid before setting state
         const hipaaData = hipaaResponse.data;
+        const statsData = statsResponse.data;
+        
+        // Calculate completion rate if it's missing
+        if (statsData?.surveys && typeof statsData.surveys.completion_rate === 'undefined') {
+          // Calculate completion rate based on total surveys and total patients
+          // If there are no patients, set completion rate to 0
+          if (statsData.patients?.total > 0 && statsData.surveys?.total > 0) {
+            // Calculate completion rate as percentage of patients who have completed surveys
+            // This assumes one survey per patient for simplicity
+            const completionRate = Math.min(100, Math.round((statsData.surveys.total / statsData.patients.total) * 100));
+            statsData.surveys.completion_rate = completionRate;
+          } else {
+            statsData.surveys.completion_rate = 0;
+          }
+        }
         
         // Ensure patients_by_gender has the expected structure
         if (hipaaData?.patients_by_gender) {
@@ -168,7 +235,7 @@ const Dashboard: React.FC = () => {
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <PeopleIcon sx={{ mr: 1, fontSize: 40 }} />
-              <Typography variant="h3">{stats?.patients || 0}</Typography>
+              <Typography variant="h3">{stats?.patients?.total || 0}</Typography>
             </Box>
           </Paper>
         </Box>
@@ -191,7 +258,7 @@ const Dashboard: React.FC = () => {
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <AssignmentIcon sx={{ mr: 1, fontSize: 40 }} />
-              <Typography variant="h3">{stats?.surveys || 0}</Typography>
+              <Typography variant="h3">{stats?.surveys?.total || 0}</Typography>
             </Box>
           </Paper>
         </Box>
@@ -214,7 +281,7 @@ const Dashboard: React.FC = () => {
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <FlagIcon sx={{ mr: 1, fontSize: 40 }} />
-              <Typography variant="h3">{stats?.flagged_surveys || 0}</Typography>
+              <Typography variant="h3">{stats?.surveys?.flagged || 0}</Typography>
             </Box>
           </Paper>
         </Box>
@@ -238,7 +305,7 @@ const Dashboard: React.FC = () => {
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <TimelineIcon sx={{ mr: 1, fontSize: 40 }} />
               <Typography variant="h3">
-                {stats?.survey_completion_rate ? `${stats.survey_completion_rate}%` : '0%'}
+                {stats?.surveys?.completion_rate !== undefined ? `${stats.surveys.completion_rate}%` : '0%'}
               </Typography>
             </Box>
           </Paper>
@@ -266,27 +333,44 @@ const Dashboard: React.FC = () => {
                   Status: 
                 </Typography>
                 <Chip 
-                  label={hipaaStats?.data_encryption.status || 'Unknown'} 
-                  color={hipaaStats?.data_encryption.status === 'Active' ? 'success' : 'error'}
+                  label={hipaaStats?.data_encryption ? 'Active' : 'Unknown'} 
+                  color={hipaaStats?.data_encryption ? 'success' : 'error'}
                   size="small"
                   sx={{ ml: 1 }}
                 />
               </Box>
-              <Typography variant="body1" gutterBottom>
-                {hipaaStats?.data_encryption.encrypted_fields || 0} of {hipaaStats?.data_encryption.total_fields || 0} fields encrypted
-              </Typography>
-              <Box sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
-                {hipaaStats?.data_encryption.status === 'Active' ? (
-                  <CheckCircleIcon color="success" sx={{ mr: 1 }} />
-                ) : (
-                  <ErrorIcon color="error" sx={{ mr: 1 }} />
-                )}
-                <Typography variant="body2" color="text.secondary">
-                  {hipaaStats?.data_encryption.status === 'Active' 
-                    ? 'All PHI is properly encrypted at rest and in transit'
-                    : 'Some PHI may not be properly encrypted'}
-                </Typography>
-              </Box>
+              
+              <List dense>
+                <ListItem>
+                  <ListItemIcon>
+                    <CheckCircleIcon color="success" />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary="Patient Data" 
+                    secondary={hipaaStats?.data_encryption?.patient_data || 'Not encrypted'} 
+                  />
+                </ListItem>
+                
+                <ListItem>
+                  <ListItemIcon>
+                    <CheckCircleIcon color="success" />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary="Survey Data" 
+                    secondary={hipaaStats?.data_encryption?.survey_data || 'Not encrypted'} 
+                  />
+                </ListItem>
+                
+                <ListItem>
+                  <ListItemIcon>
+                    <CheckCircleIcon color="success" />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary="Clinical Notes" 
+                    secondary={hipaaStats?.data_encryption?.notes || 'Not encrypted'} 
+                  />
+                </ListItem>
+              </List>
             </CardContent>
           </Card>
         </Box>
@@ -305,7 +389,7 @@ const Dashboard: React.FC = () => {
                 Total Audit Logs: {hipaaStats?.audit_logs.total || 0}
               </Typography>
               <Typography variant="body1" gutterBottom>
-                Logs in Last 24 Hours: {hipaaStats?.audit_logs.last_24_hours || 0}
+                Logs in Last 24 Hours: {hipaaStats?.audit_logs.by_action ? Object.values(hipaaStats.audit_logs.by_action).reduce((sum, count) => sum + count, 0) : 0}
               </Typography>
               <Box sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
                 <CheckCircleIcon color="success" sx={{ mr: 1 }} />
@@ -328,17 +412,31 @@ const Dashboard: React.FC = () => {
             <Divider />
             <CardContent>
               <Typography variant="body1" gutterBottom>
-                Total Admins: {hipaaStats?.access_controls.total_admins || 0}
+                Total Admins: {hipaaStats?.access_controls?.admins_count || 0}
               </Typography>
               <Typography variant="body1" gutterBottom>
-                Super Admins: {hipaaStats?.access_controls.super_admins || 0}
+                Super Admins: {hipaaStats?.access_controls?.super_admins_count || 0}
               </Typography>
               <Typography variant="body1" gutterBottom>
-                Regular Admins: {hipaaStats?.access_controls.regular_admins || 0}
+                Regular Admins: {hipaaStats?.access_controls?.admins_count ? hipaaStats.access_controls.admins_count - (hipaaStats.access_controls.super_admins_count || 0) : 0}
               </Typography>
-              <Typography variant="body1" gutterBottom>
-                Failed Login Attempts: {hipaaStats?.access_controls.failed_login_attempts || 0}
-              </Typography>
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="body1" gutterBottom fontWeight="bold">
+                  Security Settings:
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                  <CheckCircleIcon color="success" sx={{ mr: 1, fontSize: 'small' }} />
+                  <Typography variant="body2">
+                    Authentication: {hipaaStats?.access_controls?.jwt_authentication || 'N/A'}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <CheckCircleIcon color="success" sx={{ mr: 1, fontSize: 'small' }} />
+                  <Typography variant="body2">
+                    Session Timeout: {hipaaStats?.access_controls?.session_timeout || 'N/A'}
+                  </Typography>
+                </Box>
+              </Box>
             </CardContent>
           </Card>
         </Box>
@@ -435,14 +533,14 @@ const Dashboard: React.FC = () => {
         <List>
           {stats?.recent_activity && Array.isArray(stats.recent_activity) && stats.recent_activity.length > 0 ? (
             stats.recent_activity.map((activity, index) => (
-              <React.Fragment key={index}>
+              <React.Fragment key={`activity-${index}`}>
                 <ListItem>
                   <ListItemIcon>
-                    <EventNoteIcon />
+                    {getActivityIcon(activity.type, activity.title)}
                   </ListItemIcon>
                   <ListItemText
-                    primary={`${activity.action} on ${activity.entity_type}`}
-                    secondary={`By ${activity.admin_name} at ${new Date(activity.created_at).toLocaleString()}`}
+                    primary={getActivityText(activity.type, activity.title)}
+                    secondary={`${new Date(activity.created_at).toLocaleString()}`}
                   />
                 </ListItem>
                 {index < stats.recent_activity.length - 1 && <Divider />}

@@ -40,7 +40,7 @@ const Login: React.FC = () => {
     onSubmit: async (values, { setSubmitting }) => {
       setError(null);
       try {
-        await login(values.email, values.password);
+        await login({ email: values.email, password: values.password });
         navigate('/admin/dashboard');
       } catch (err: any) {
         setError(err.response?.data?.error || 'Invalid email or password');

@@ -96,12 +96,51 @@ const PatientDetail: React.FC = () => {
           patientApi.getPatientSurveys(parseInt(id!))
         ]);
         
-        setPatient(patientResponse.data);
-        setSurveys(surveysResponse.data.surveys);
+        // Log the response for debugging
+        console.log('Patient data:', patientResponse.data);
+        console.log('Surveys data:', surveysResponse.data);
+        
+        // Check if we received valid patient data
+        if (patientResponse.data) {
+          setPatient(patientResponse.data);
+        } else {
+          // Create a placeholder patient with default values
+          setPatient({
+            id: parseInt(id!),
+            first_name: '',
+            last_name: '',
+            email: '',
+            phone_number: '',
+            date_of_birth: '',
+            gender: '',
+            medical_record_number: '',
+            status: 'unknown',
+            created_at: '',
+            updated_at: ''
+          });
+        }
+        
+        // Set surveys if available, otherwise empty array
+        setSurveys(surveysResponse.data?.surveys || []);
         setError(null);
       } catch (err: any) {
         console.error('Error fetching patient data:', err);
         setError(err.response?.data?.error || 'Failed to load patient data');
+        
+        // Create a placeholder patient even on error
+        setPatient({
+          id: parseInt(id!),
+          first_name: '',
+          last_name: '',
+          email: '',
+          phone_number: '',
+          date_of_birth: '',
+          gender: '',
+          medical_record_number: '',
+          status: 'unknown',
+          created_at: '',
+          updated_at: ''
+        });
       } finally {
         setLoading(false);
       }
@@ -129,8 +168,27 @@ const PatientDetail: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+  // Helper function to determine if a field is encrypted or missing
+  const formatPhiField = (value: string | null | undefined, isEncrypted: boolean = false) => {
+    if (isEncrypted) return '*****'; // Placeholder for encrypted PHI
+    if (!value) return 'N/A'; // Placeholder for missing data
+    return value;
+  };
+  
+  // Format date fields with encryption handling
+  const formatDate = (dateString: string | null | undefined, isEncrypted: boolean = false) => {
+    if (isEncrypted) return '*****';
+    if (!dateString) return 'N/A';
+    
+    // Try to parse the date
+    const date = new Date(dateString);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return 'Invalid date';
+    }
+    
+    return date.toLocaleDateString();
   };
 
   if (loading) {
@@ -213,7 +271,7 @@ const PatientDetail: React.FC = () => {
                     </ListItemIcon>
                     <ListItemText 
                       primary="Full Name" 
-                      secondary={`${patient.first_name} ${patient.last_name}`} 
+                      secondary={patient.first_name ? `${formatPhiField(patient.first_name, true)} ${formatPhiField(patient.last_name, true)}` : '*****'} 
                     />
                   </ListItem>
                   
@@ -223,7 +281,7 @@ const PatientDetail: React.FC = () => {
                     </ListItemIcon>
                     <ListItemText 
                       primary="Email" 
-                      secondary={patient.email} 
+                      secondary={formatPhiField(patient.email, true)} 
                     />
                   </ListItem>
                   
@@ -233,7 +291,7 @@ const PatientDetail: React.FC = () => {
                     </ListItemIcon>
                     <ListItemText 
                       primary="Phone" 
-                      secondary={patient.phone_number} 
+                      secondary={formatPhiField(patient.phone_number, true)} 
                     />
                   </ListItem>
                   
@@ -243,7 +301,7 @@ const PatientDetail: React.FC = () => {
                     </ListItemIcon>
                     <ListItemText 
                       primary="Date of Birth" 
-                      secondary={formatDate(patient.date_of_birth)} 
+                      secondary={formatDate(patient.date_of_birth, true)} 
                     />
                   </ListItem>
                   
@@ -253,7 +311,7 @@ const PatientDetail: React.FC = () => {
                     </ListItemIcon>
                     <ListItemText 
                       primary="Gender" 
-                      secondary={patient.gender} 
+                      secondary={formatPhiField(patient.gender)} 
                     />
                   </ListItem>
                   
@@ -263,7 +321,7 @@ const PatientDetail: React.FC = () => {
                     </ListItemIcon>
                     <ListItemText 
                       primary="Created" 
-                      secondary={new Date(patient.created_at).toLocaleString()} 
+                      secondary={formatDate(patient.created_at)} 
                     />
                   </ListItem>
                   
@@ -273,7 +331,7 @@ const PatientDetail: React.FC = () => {
                     </ListItemIcon>
                     <ListItemText 
                       primary="Last Updated" 
-                      secondary={new Date(patient.updated_at).toLocaleString()} 
+                      secondary={formatDate(patient.updated_at)} 
                     />
                   </ListItem>
                 </List>
@@ -295,7 +353,7 @@ const PatientDetail: React.FC = () => {
                     </ListItemIcon>
                     <ListItemText 
                       primary="Medical Record Number" 
-                      secondary={patient.medical_record_number} 
+                      secondary={formatPhiField(patient.medical_record_number, true)} 
                     />
                   </ListItem>
                   
