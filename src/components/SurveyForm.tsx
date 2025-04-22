@@ -18,10 +18,7 @@ import {
 } from '@mui/material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import axios from 'axios';
-
-// Define the API base URL
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api/v1';
+import { surveyApi } from '../services/api';
 
 // Define the survey form validation schema
 const validationSchema = Yup.object({
@@ -71,18 +68,29 @@ const SurveyForm: React.FC = () => {
           sleep_hours: Number(values.sleep_hours)
         };
         
-        // Submit survey data to API
-        const response = await axios.post(`${API_URL}/surveys`, { survey: surveyData });
+        console.log('Submitting survey data:', surveyData);
+        
+        // Submit survey data to API using the surveyApi service
+        const response = await surveyApi.submitSurvey(surveyData);
         
         // Handle successful submission
-        setSubmitSuccess(true);
-        formik.resetForm();
         console.log('Survey submitted successfully:', response.data);
-      } catch (error) {
+        setSubmitSuccess(true);
+        
+        // Reset form
+        formik.resetForm();
+        
+        // Use absolute URL path to ensure proper redirection
+        console.log('Redirecting to thank you page...');
+        const currentOrigin = window.location.origin;
+        const thankYouUrl = `${currentOrigin}/thank-you`;
+        console.log('Redirecting to:', thankYouUrl);
+        window.location.href = thankYouUrl;
+      } catch (error: any) {
         // Handle submission error
         console.error('Error submitting survey:', error);
-        if (axios.isAxiosError(error) && error.response) {
-          setSubmitError(error.response.data.error || 'Failed to submit survey. Please try again.');
+        if (error.response) {
+          setSubmitError(error.response.data?.error || 'Failed to submit survey. Please try again.');
         } else {
           setSubmitError('An unexpected error occurred. Please try again.');
         }

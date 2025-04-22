@@ -31,20 +31,29 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import { Link, useNavigate } from 'react-router-dom';
 import { surveyResponseApi } from '../../../services/api';
 
+interface ResponseData {
+  id: number;
+  question_id: number;
+  question_content: string;
+  question_type: string;
+  text_value: string | null;
+  numeric_value: number | null;
+  formatted_value: string | null;
+}
+
 interface SurveyResponse {
   id: number;
-  patient_id: number;
-  patient_name: string;
-  feeling: number;
-  stress_level: number;
-  sleep_hours: number;
-  symptoms: string;
+  patient_id: number | null;
+  patient_name: string | null;
   created_at: string;
+  updated_at: string;
   flagged: boolean;
   flagged_reason: string | null;
   flagged_at: string | null;
   flagged_by_id: number | null;
-  encrypted?: boolean; // Flag to indicate if data is encrypted
+  workflow_name: string | null;
+  response_count: number;
+  response_data: ResponseData[];
 }
 
 const SurveyResponseList: React.FC = () => {
@@ -69,53 +78,110 @@ const SurveyResponseList: React.FC = () => {
                  flagFilter === 'unflagged' ? false : undefined
       });
       
-      // Log the response for debugging
-      console.log('Survey responses:', response.data);
+      // Process the response data
       
-      // Check if we have survey data
-      if (response.data.surveys && Array.isArray(response.data.surveys)) {
-        setSurveys(response.data.surveys);
+      // Process the new API response format
+      if (response.data && Array.isArray(response.data.data)) {
+        // Map the new format to our expected SurveyResponse format
+        const processedSurveys = response.data.data.map((item: any) => {
+          const attributes = item.attributes || {};
+          const relationships = item.relationships || {};
+          
+          return {
+            id: attributes.id || parseInt(item.id),
+            patient_id: relationships.patient?.data?.id ? parseInt(relationships.patient.data.id) : null,
+            patient_name: attributes.patient_name || null,
+            created_at: attributes.created_at,
+            updated_at: attributes.updated_at,
+            flagged: attributes.flagged || false,
+            flagged_reason: attributes.flagged_reason,
+            flagged_at: attributes.flagged_at,
+            flagged_by_id: attributes.flagged_by_id,
+            workflow_name: attributes.workflow_name || null,
+            response_count: attributes.response_count || 0,
+            response_data: attributes.response_data || []
+          };
+        });
+        
+        setSurveys(processedSurveys);
       } else {
         // Create sample data if no surveys are returned
         const sampleSurveys: SurveyResponse[] = Array.from({ length: 5 }, (_, i) => ({
           id: i + 1,
           patient_id: 1000 + i,
-          patient_name: 'Sample Patient',
-          feeling: 3,
-          stress_level: 4,
-          sleep_hours: 7,
-          symptoms: 'None reported',
+          patient_name: `Sample Patient ${i + 1}`,
           created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           flagged: i % 2 === 0,
           flagged_reason: i % 2 === 0 ? 'Sample flag reason' : null,
           flagged_at: i % 2 === 0 ? new Date().toISOString() : null,
           flagged_by_id: i % 2 === 0 ? 1 : null,
-          encrypted: true // Mark sample data as encrypted
+          workflow_name: i % 3 === 0 ? 'Mental Health Assessment' : null,
+          response_count: 2,
+          response_data: [
+            {
+              id: i * 2 + 1,
+              question_id: 1,
+              question_content: 'Have you experienced anxiety in the past week?',
+              question_type: 'yes_no',
+              text_value: i % 2 === 0 ? 'Yes' : 'No',
+              numeric_value: null,
+              formatted_value: i % 2 === 0 ? 'Yes' : 'No'
+            },
+            {
+              id: i * 2 + 2,
+              question_id: 2,
+              question_content: 'How often have you felt down or depressed in the last two weeks?',
+              question_type: 'multiple_choice',
+              text_value: i % 3 === 0 ? 'Often' : 'Sometimes',
+              numeric_value: null,
+              formatted_value: i % 3 === 0 ? 'Often' : 'Sometimes'
+            }
+          ]
         }));
         setSurveys(sampleSurveys);
       }
       
-      setTotalCount(response.data.total_count || 5);
+      // Update total count from meta data
+      setTotalCount(response.data?.meta?.total || 5);
       setError(null);
     } catch (err: any) {
-      console.error('Error fetching surveys:', err);
+      // Set error message from API response or default message
       setError(err.response?.data?.error || 'Failed to load surveys');
       
       // Create sample data even on error
       const sampleSurveys: SurveyResponse[] = Array.from({ length: 5 }, (_, i) => ({
         id: i + 1,
         patient_id: 1000 + i,
-        patient_name: 'Sample Patient',
-        feeling: 3,
-        stress_level: 4,
-        sleep_hours: 7,
-        symptoms: 'None reported',
+        patient_name: `Sample Patient ${i + 1}`,
         created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         flagged: i % 2 === 0,
         flagged_reason: i % 2 === 0 ? 'Sample flag reason' : null,
         flagged_at: i % 2 === 0 ? new Date().toISOString() : null,
         flagged_by_id: i % 2 === 0 ? 1 : null,
-        encrypted: true // Mark sample data as encrypted
+        workflow_name: i % 3 === 0 ? 'Mental Health Assessment' : null,
+        response_count: 2,
+        response_data: [
+          {
+            id: i * 2 + 1,
+            question_id: 1,
+            question_content: 'Have you experienced anxiety in the past week?',
+            question_type: 'yes_no',
+            text_value: i % 2 === 0 ? 'Yes' : 'No',
+            numeric_value: null,
+            formatted_value: i % 2 === 0 ? 'Yes' : 'No'
+          },
+          {
+            id: i * 2 + 2,
+            question_id: 2,
+            question_content: 'How often have you felt down or depressed in the last two weeks?',
+            question_type: 'multiple_choice',
+            text_value: i % 3 === 0 ? 'Often' : 'Sometimes',
+            numeric_value: null,
+            formatted_value: i % 3 === 0 ? 'Often' : 'Sometimes'
+          }
+        ]
       }));
       setSurveys(sampleSurveys);
     } finally {
@@ -194,7 +260,7 @@ const SurveyResponseList: React.FC = () => {
         <Box sx={{ display: 'flex', gap: 2 }}>
           <TextField
             fullWidth
-            placeholder="Search by patient name or symptoms"
+            placeholder="Search by patient name or response content"
             value={searchTerm}
             onChange={handleSearchChange}
             InputProps={{
@@ -239,11 +305,10 @@ const SurveyResponseList: React.FC = () => {
             <TableHead>
               <TableRow>
                 <TableCell>ID</TableCell>
-                <TableCell>Patient</TableCell>
-                <TableCell>Feeling</TableCell>
-                <TableCell>Stress Level</TableCell>
-                <TableCell>Sleep Hours</TableCell>
                 <TableCell>Date Submitted</TableCell>
+                <TableCell>Patient</TableCell>
+                <TableCell>Workflow</TableCell>
+                <TableCell>Key Responses</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -251,13 +316,13 @@ const SurveyResponseList: React.FC = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={7} align="center">
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
               ) : surveys.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={7} align="center">
                     No survey responses found
                   </TableCell>
                 </TableRow>
@@ -265,50 +330,76 @@ const SurveyResponseList: React.FC = () => {
                 surveys.map((survey) => (
                   <TableRow key={survey.id} hover>
                     <TableCell>{survey.id}</TableCell>
-                    <TableCell>{survey.encrypted ? '*****' : survey.patient_name}</TableCell>
-                    <TableCell>{survey.feeling}/5</TableCell>
-                    <TableCell>{survey.stress_level}/5</TableCell>
-                    <TableCell>{survey.sleep_hours}</TableCell>
                     <TableCell>
-                      {survey.encrypted ? '*****' : new Date(survey.created_at).toLocaleString()}
+                      {new Date(survey.created_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      {survey.patient_name || 'Anonymous Patient'}
+                    </TableCell>
+                    <TableCell>
+                      {survey.workflow_name || 'No workflow'}
+                    </TableCell>
+                    <TableCell>
+                      {survey.response_data && survey.response_data.length > 0 ? (
+                        <Box sx={{ maxWidth: 300, maxHeight: 100, overflow: 'hidden' }}>
+                          {survey.response_data.slice(0, 2).map((response, index) => (
+                            <Tooltip 
+                              key={response.id} 
+                              title={`${response.question_content}: ${response.formatted_value}`}
+                              placement="top"
+                            >
+                              <Typography variant="body2" noWrap>
+                                <strong>{index + 1}.</strong> {response.question_content.substring(0, 25)}...: 
+                                <span style={{ fontWeight: 'bold' }}>
+                                  {response.formatted_value}
+                                </span>
+                              </Typography>
+                            </Tooltip>
+                          ))}
+                          {survey.response_data.length > 2 && (
+                            <Typography variant="body2" color="text.secondary">
+                              +{survey.response_data.length - 2} more responses
+                            </Typography>
+                          )}
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          No response data available
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       {survey.flagged ? (
-                        <Chip 
-                          icon={<FlagIcon />} 
-                          label="Flagged" 
-                          color="error" 
-                          variant="outlined" 
-                          size="small"
-                          title={survey.encrypted ? '*****' : (survey.flagged_reason || undefined)}
-                        />
+                        <Tooltip title={survey.flagged_reason || 'This survey has been flagged for review'}>
+                          <Chip
+                            icon={<FlagIcon />}
+                            label="Flagged"
+                            color="error"
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Tooltip>
                       ) : (
-                        <Chip 
-                          label="Normal" 
-                          color="success" 
-                          variant="outlined" 
-                          size="small" 
+                        <Chip
+                          label="Normal"
+                          color="success"
+                          variant="outlined"
+                          size="small"
                         />
                       )}
                     </TableCell>
                     <TableCell align="right">
-                      <Tooltip title="View Details">
-                        <IconButton 
-                          color="primary" 
-                          component={Link} 
-                          to={`/admin/surveys/${survey.id}`}
-                          disabled={survey.encrypted}
-                        >
-                          <VisibilityIcon />
-                        </IconButton>
-                      </Tooltip>
-                      {survey.encrypted && (
-                        <Tooltip title="Encrypted data - Access restricted">
-                          <span style={{ marginLeft: '8px', fontSize: '12px', color: '#888' }}>
-                            (Restricted)
-                          </span>
-                        </Tooltip>
-                      )}
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        color="primary"
+                        component={Link}
+                        to={`/admin/survey-responses/${survey.id}`}
+                        startIcon={<VisibilityIcon />}
+                        sx={{ mr: 1 }}
+                      >
+                        View Detail
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -316,7 +407,7 @@ const SurveyResponseList: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-        
+
         <TablePagination
           rowsPerPageOptions={[5, 10, 25]}
           component="div"

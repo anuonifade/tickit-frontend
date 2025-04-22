@@ -39,15 +39,23 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { useAuth } from '../../../contexts/AuthContext';
 
+interface ResponseData {
+  id: number;
+  question_id: number;
+  question_content: string;
+  question_type: string;
+  numeric_value: number | null;
+  text_value: string | null;
+  formatted_value: string;
+}
+
 interface SurveyResponse {
   id: number;
   patient_id: number;
   patient_name: string;
-  feeling: number;
-  stress_level: number;
-  sleep_hours: number;
-  symptoms: string;
+  workflow_name: string;
   created_at: string;
+  updated_at: string;
   flagged: boolean;
   flagged_reason: string | null;
   flagged_at: string | null;
@@ -57,6 +65,7 @@ interface SurveyResponse {
     first_name: string;
     last_name: string;
   } | null;
+  response_data: ResponseData[];
   notes: SurveyNote[];
 }
 
@@ -89,8 +98,47 @@ const SurveyResponseDetail: React.FC = () => {
   const fetchSurvey = async () => {
     try {
       setLoading(true);
+      console.log('Fetching survey with ID:', id);
       const response = await surveyResponseApi.getSurvey(parseInt(id!));
-      setSurvey(response.data);
+      console.log('Full API response:', response);
+      
+      // Handle the nested JSON structure from the API
+      let surveyData;
+      
+      if (response.data && response.data.data && response.data.data.attributes) {
+        // Extract the survey data from the nested structure
+        const attributes = response.data.data.attributes;
+        console.log('Survey attributes:', attributes);
+        
+        // Construct a survey object that matches our interface
+        surveyData = {
+          id: attributes.id,
+          patient_id: 0, // Default value
+          patient_name: attributes.patient_name || 'Anonymous',
+          workflow_name: attributes.workflow_name || 'Unknown Workflow',
+          created_at: attributes.created_at,
+          updated_at: attributes.updated_at,
+          flagged: attributes.flagged || false,
+          flagged_reason: attributes.flagged_reason,
+          flagged_at: null,
+          flagged_by: null,
+          response_data: attributes.response_data || [],
+          notes: []
+        };
+        
+        console.log('Constructed survey data:', surveyData);
+      } else {
+        // Fallback to the original response format if the nested structure isn't found
+        surveyData = response.data;
+        
+        // Make sure response_data exists and is an array
+        if (!surveyData.response_data || !Array.isArray(surveyData.response_data)) {
+          console.warn('Response data is missing or not an array:', surveyData);
+          surveyData.response_data = [];
+        }
+      }
+      
+      setSurvey(surveyData);
       setError(null);
     } catch (err: any) {
       console.error('Error fetching survey:', err);
@@ -346,71 +394,69 @@ const SurveyResponseDetail: React.FC = () => {
         {/* Survey Responses */}
         <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 48%' } }}>
           <Paper elevation={3} sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Survey Responses
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">
+                Survey Responses
+              </Typography>
+              <Typography variant="subtitle1" color="text.secondary">
+                Workflow: {survey.workflow_name}
+              </Typography>
+            </Box>
             <Divider sx={{ mb: 2 }} />
             
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-              <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 48%' } }}>
-                <Card variant="outlined">
-                  <CardHeader 
-                    title="Feeling Rating" 
-                    titleTypographyProps={{ variant: 'subtitle1' }}
-                    avatar={<SentimentVerySatisfiedIcon color="primary" />}
-                  />
-                  <CardContent>
-                    <Typography variant="h4" align="center">
-                      {survey.feeling}/5
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Box>
-              
-              <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 48%' } }}>
-                <Card variant="outlined">
-                  <CardHeader 
-                    title="Stress Level" 
-                    titleTypographyProps={{ variant: 'subtitle1' }}
-                    avatar={<SentimentVeryDissatisfiedIcon color="primary" />}
-                  />
-                  <CardContent>
-                    <Typography variant="h4" align="center">
-                      {survey.stress_level}/5
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Box>
-              
-              <Box sx={{ flex: '1 1 100%' }}>
-                <Card variant="outlined">
-                  <CardHeader 
-                    title="Sleep Hours" 
-                    titleTypographyProps={{ variant: 'subtitle1' }}
-                    avatar={<BedtimeIcon color="primary" />}
-                  />
-                  <CardContent>
-                    <Typography variant="h4" align="center">
-                      {survey.sleep_hours} hours
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Box>
-              
-              <Box sx={{ flex: '1 1 100%' }}>
-                <Card variant="outlined">
-                  <CardHeader 
-                    title="Symptoms" 
-                    titleTypographyProps={{ variant: 'subtitle1' }}
-                  />
-                  <CardContent>
-                    <Typography variant="body1">
-                      {survey.symptoms}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Box>
+            {/* Add debugging information */}
+            <Box sx={{ mb: 2, p: 2, bgcolor: 'rgba(0, 0, 0, 0.03)', borderRadius: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                Response data count: {survey.response_data ? survey.response_data.length : 0}
+              </Typography>
             </Box>
+            
+            {survey.response_data && survey.response_data.length > 0 ? (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                {survey.response_data.map((response, index) => {
+                  // Determine the appropriate icon based on question type
+                  let icon = <NoteIcon color="primary" />;
+                  if (response.question_type === 'numeric_scale') {
+                    icon = <SentimentVerySatisfiedIcon color="primary" />;
+                  } else if (response.question_type === 'sleep_hours') {
+                    icon = <BedtimeIcon color="primary" />;
+                  } else if (response.question_type === 'stress_level') {
+                    icon = <SentimentVeryDissatisfiedIcon color="primary" />;
+                  }
+                  
+                  return (
+                    <Box key={response.id || `response-${index}`} sx={{ flex: { xs: '1 1 100%', sm: response.question_type === 'text' ? '1 1 100%' : '1 1 48%' } }}>
+                      <Card variant="outlined">
+                        <CardHeader 
+                          title={response.question_content || `Question ${index + 1}`} 
+                          titleTypographyProps={{ variant: 'subtitle1' }}
+                          avatar={icon}
+                        />
+                        <CardContent>
+                          {response.question_type === 'numeric_scale' ? (
+                            <Typography variant="h4" align="center">
+                              {response.numeric_value || 0}/5
+                            </Typography>
+                          ) : response.question_type === 'text' ? (
+                            <Typography variant="body1">
+                              {response.text_value || 'No response provided'}
+                            </Typography>
+                          ) : (
+                            <Typography variant="h4" align="center">
+                              {response.formatted_value || 'No formatted value'}
+                            </Typography>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Box>
+                  );
+                })}
+              </Box>
+            ) : (
+              <Typography variant="body1" sx={{ textAlign: 'center', py: 4 }}>
+                No response data available
+              </Typography>
+            )}
           </Paper>
         </Box>
         

@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-ro
 import { AppBar, Toolbar, Typography, Container, Button, Box, CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import SurveyForm from './components/SurveyForm';
 import SurveyAnalytics from './components/SurveyAnalytics';
+import ThankYouPage from './components/ThankYouPage';
 
 // Admin components
 import Login from './components/admin/Login';
@@ -74,6 +75,7 @@ const PublicLayout = () => {
         <Routes>
           <Route index element={<SurveyForm />} />
           <Route path="analytics" element={<SurveyAnalytics />} />
+          <Route path="thank-you" element={<ThankYouPage />} />
         </Routes>
       </Container>
       
